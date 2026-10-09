@@ -29,7 +29,7 @@
 - **계층**: route(연결만) → controller(요청 ↔ service) → service(로직, Fastify 모름) → repository(DB 쿼리)
 - **계약**: BE·FE 가 공유하는 요청·응답 모양, `ERROR_CODE`, 봉투는 `src/api-contracts/` (`@/api-contracts` 로 import)
 - **응답**: 성공은 `reply.ok(data)`, 실패는 service 에서 `throw new AppError(...)`. 모양은 전역에서 봉투로 통일
-- **DB**: controller 가 `request.server.db` 를 꺼내 service → repository 로 인자로 넘긴다. 트랜잭션은 service 가 `trx` 를 넘긴다
+- **DB**: repository 가 `executor()` 로 DB 를 스스로 가져온다. 트랜잭션 경계는 service 가 `transaction()` 으로 정한다 (AsyncLocalStorage, 바깥 트랜잭션에 합류). controller·service 는 DB 를 모른다
 - **인증**: 이름 붙은 가드(`user`, `admin`). 경로 보호는 `onRequestHook.onlyLogin("admin")`, 신원은 `request.authOrFail("admin")`
 - **import**: `@/` alias 만. 상대경로는 lint 에러
 

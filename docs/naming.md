@@ -109,9 +109,10 @@ const cache = new WeakMap();                  // 인스턴스 → camel
 | route 플러그인 | `<기능>Route` | `exampleRoute` |
 | controller 함수 | `<HTTP 메서드><대상>` | `getExample`, `postExample` |
 | 라우트 스키마 | `<controller 함수 이름>Schema` | `getExampleSchema` |
-| 데이터 스키마·타입 (`api-contracts/`) | PascalCase 명사 | `Example` |
-| params 스키마 | `<대상>Params` | `ExampleParams` |
-| body 스키마 | `<동작><대상>Body` | `CreateExampleBody` |
+| 계약: 경로 파라미터 | `<동작>Params` (동작 = controller 함수 이름의 PascalCase) | `GetExampleParams` |
+| 계약: 요청 (query 또는 body) | `<동작>Request` | `PostExampleRequest` |
+| 계약: 응답 `data` | `<동작>Response` | `GetExampleResponse` |
+| 계약: 공용 리소스 | PascalCase 명사 | `Example` |
 | service 함수 | `<동작><대상>` | `getExample`, `createExample` |
 | repository 함수 | 조회 `findBy<조건>`, 추가 `insert` | `findById`, `insert` |
 
@@ -207,7 +208,6 @@ import ...
 ## 아직 정하지 않은 것
 
 - repository 의 수정·삭제 함수 동사 (`update` / `delete` …). 쓰는 예시가 생길 때 정한다
-- querystring 스키마 이름 (`ListExamplesQuery`?). 쓰는 예시가 생길 때 정한다
 - boolean 변수 접두사 (`is` / `has` …)
 - 제네릭 타입 파라미터의 한 글자 이름(`T`, `G`) 허용 여부. 지금 코드는 `T`, `G`, `TReply`, `TIdentity` 를 섞어 쓴다
 - `README.md` 같은 관례적 대문자 파일을 예외로 둘지

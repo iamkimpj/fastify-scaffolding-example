@@ -65,7 +65,7 @@ env.PORT; // number
 | **TypeScript 6.0.x** | 7.0 (Go 포트) 은 tsup·vitest 호환이 확인되지 않아 6 으로 고정 |
 | **tsup** | 번들 시 `@/` alias 를 풀어준다. 런타임 alias 설정이 필요 없다 |
 | **tsx** | 개발 실행. tsconfig `paths` 를 읽는다 |
-| **Biome** | lint + format 하나로. 상대경로 import 를 `noRestrictedImports` 로 막는다. 설정 파일은 헤더 주석을 위해 `biome.jsonc` |
+| **Biome** | lint + format 하나로. 상대경로 import 를 `noRestrictedImports` 로 막는다. await 누락은 `noFloatingPromises`(nursery — 시험 단계 규칙, 타입 정보를 써서 검사가 느려짐). 설정 파일은 헤더 주석을 위해 `biome.jsonc` |
 | **Vitest** | `resolve.tsconfigPaths` 로 alias 해석 |
 | **jose** | JWT. `@fastify/jwt` 대신 — 가드가 driver 를 자유롭게 고르도록 Fastify 에 묶이지 않는 도구를 쓴다 |
 | **npm** | npm 11 이 esbuild 의 설치 스크립트를 막는다는 경고가 뜨지만 동작에는 문제없다 |

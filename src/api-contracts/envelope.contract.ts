@@ -25,6 +25,15 @@ export const Ok = <T extends TSchema>(data: T) =>
   });
 
 /**
+ * 성공 봉투 타입. 스키마 함수 `Ok(X)` 와 같은 이름이다 (TypeBox 스키마는 타입으로 취급).
+ * FE 가 응답 본문 전체의 타입을 적을 때 쓴다: `Ok<GetExampleResponse>`
+ */
+export type Ok<TData> = {
+  isOk: true;
+  data: TData;
+};
+
+/**
  * 실패 봉투. 그 경로가 낼 수 있는 실패를 문서에 밝힐 때 쓴다.
  *
  * 선언하지 않아도 실패 응답은 error-handler 가 똑같이 보낸다. 차이는 Swagger 에 보이느냐뿐이다.

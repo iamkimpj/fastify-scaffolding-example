@@ -47,10 +47,12 @@ export const ERROR_CODE = {
 | 1 | `AppError` | 들고 온 값 | 들고 온 값 | 들고 온 값 (+ `data`) |
 | 2 | 스키마 검증 실패 (`error.validation`) | 400 | `INVALID_REQUEST` | 자동 생성 (아래) |
 | 3 | Fastify 가 4xx 로 판단한 것 (깨진 JSON, content-type 불일치, 본문 초과) | 들고 온 값 | `INVALID_REQUEST` | Fastify 문구 |
-| 4 | 그 밖의 모든 것 | 500 | `INTERNAL_ERROR` | 운영: 고정 문구 / 개발: 원래 메시지 |
+| 4 | 그 밖의 모든 것 | 500 | `INTERNAL_ERROR` | 운영: 고정 문구 / 개발: 원래 메시지 (비어 있으면 `error.code`, 그것도 없으면 고정 문구) |
 | - | 등록되지 않은 경로 (`setNotFoundHandler`) | 404 | `ROUTE_NOT_FOUND` | 고정 문구 |
 
 - **상태 코드는 오류가 들고 온 것을 살린다.** 무조건 500 으로 덮으면 "보낸 쪽 잘못(4xx)" 과 "서버 고장(5xx)" 을 구분할 수 없다.
+- **메시지가 빈 에러가 있다.** DB 접속 실패 때 Node 는 IPv6·IPv4 시도 실패를 `AggregateError` 로 묶어 던지는데,
+  `message` 는 빈 문자열이고 `code`(`ECONNREFUSED`)에만 원인이 있다. 개발 환경에서는 이 `code` 를 `errorMessage` 로 쓴다
 - **로그는 500 일 때만** 남긴다. 4xx 까지 error 로그를 남기면 보낸 쪽 실수가 서버 오류 로그를 채운다.
 - 404 문구에 **요청 주소를 넣지 않는다.** 받은 값을 그대로 되비추는 자리를 만들지 않는다.
 - `setErrorHandler` 와 `setNotFoundHandler` 는 짝이다. 경로를 못 찾으면 핸들러에 들어가지 않아 오류가 생길 자리가 없으므로, 따로 잡지 않으면 없는 경로만 봉투 밖으로 나간다.

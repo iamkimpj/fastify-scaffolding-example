@@ -10,8 +10,8 @@ import type { DatabaseOptions } from "@/db";
  * DB_* 는 src/db 가 관리한다 (configs/env.config.ts 에 두지 않는다).
  * src/db 가 바깥을 import 하지 않아야 모노레포에서 packages/db 로 그대로 옮길 수 있기 때문이다.
  *
- * createDatabase 자체는 환경변수를 읽지 않는다. 환경변수를 읽는 것은 진입점(plugins/db.ts,
- * migrate.ts, seeds/index.ts)이 이 함수를 부를 때뿐이다.
+ * createDatabase 자체는 환경변수를 읽지 않는다. 환경변수를 읽는 것은 db/client.ts 가
+ * 공용 인스턴스를 만들 때 이 함수를 부르는 한 곳뿐이다.
  */
 
 const DbEnv = Type.Object({

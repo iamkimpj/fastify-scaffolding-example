@@ -82,6 +82,22 @@ const toValidationMessage = (validation: ValidationEntry[]): string => {
 };
 
 // ------------------------------------------------------------------
+// 500 문구
+// ------------------------------------------------------------------
+
+const INTERNAL_ERROR_MESSAGE = "요청을 처리하지 못했습니다";
+
+/**
+ * 개발 환경에서 500 의 errorMessage. 원래 메시지를 보여 준다.
+ *
+ * **메시지가 빈 에러가 있다.** 예: DB 에 접속하지 못하면 Node 가 IPv6·IPv4 시도 실패를
+ * AggregateError 로 묶어 던지는데, 그 message 는 빈 문자열이고 code 에만 `ECONNREFUSED` 가 있다.
+ * 빈 문구로는 원인을 알 수 없으므로 code 로, 그것도 없으면 고정 문구로 채운다. 자세한 내용은 로그에 있다.
+ */
+const developmentMessage = (error: { message?: string; code?: unknown }): string =>
+  error.message || (typeof error.code === "string" && error.code) || INTERNAL_ERROR_MESSAGE;
+
+// ------------------------------------------------------------------
 // 플러그인
 // ------------------------------------------------------------------
 
@@ -120,7 +136,7 @@ async function errorHandler(app: FastifyInstance) {
       .send(
         errorBody(
           ERROR_CODE.INTERNAL_ERROR,
-          isProduction ? "요청을 처리하지 못했습니다" : error.message,
+          isProduction ? INTERNAL_ERROR_MESSAGE : developmentMessage(error),
         ),
       );
   });

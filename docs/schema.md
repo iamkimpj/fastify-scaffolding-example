@@ -32,30 +32,67 @@ export type Example = Static<typeof Example>;
 
 | | 파일 | 내용 | 누가 쓰나 |
 |---|---|---|---|
-| **계약** | `src/api-contracts/<기능>.contract.ts` | 요청·응답의 **모양** (`Example`, `ExampleParams`, `CreateExampleBody`) + 타입 | BE, **FE** |
+| **계약** | `src/api-contracts/<기능>.contract.ts` | 요청·응답의 **모양** (`GetExampleParams`, `PostExampleRequest`, `GetExampleResponse` …) + 타입 | BE, **FE** |
 | **라우트 스키마** | `src/modules/<기능>/<기능>.schema.ts` | 계약을 경로에 묶은 것 (`getExampleSchema`: tags, summary, params, response) | BE 만 |
 
 계약은 FE 와 공유한다. 모듈 안에 두면 FE 가 가져갈 수 없으므로 `src/api-contracts/` 에 모은다.
 
+### 계약 이름 — API(동작) 단위로 묶는다
+
+동작 이름은 **controller 함수 이름의 PascalCase** 다 (`getExample` → `GetExample`).
+같은 API 의 요청과 응답이 같은 접두사로 묶여, `GetExample*` 만 찾으면 그 API 의 계약이 다 나온다.
+
+| 부분 | 이름 | 라우트 스키마에서 넣는 자리 |
+|---|---|---|
+| 경로 파라미터 | `<동작>Params` | `params` |
+| 요청 | `<동작>Request` | GET 이면 `querystring`, 그 밖이면 `body` |
+| 응답 (봉투 안의 `data`) | `<동작>Response` | `response[200]` 에 `Ok(...)` 로 감싸서 |
+| 공용 리소스 | 명사 (`Example`) | 여러 응답의 부품 |
+
+- **`Params` 는 경로 파라미터**(`/examples/:id` 의 `id`)다. 쿼리 파라미터(`?page=2`)가 아니다.
+  한 API 에 둘이 함께 있을 수 있어(`GET /examples/:id?descriptionLength=10`) 이름을 나눈다
+- 라우트 스키마의 키와 핸들러에서 꺼내는 이름이 다르다: `params` → `request.params`, **`querystring` → `request.query`**, `body` → `request.body`
+- querystring 값은 모두 문자열로 오지만, 스키마가 `Integer` 면 Fastify(ajv)가 숫자로 바꿔 준다 (`"10"` → `10`)
+- 요청은 query 와 body 를 나누지 않고 `Request` 하나다. **어디에 실릴지는 메서드가 정한다.**
+  API 클라이언트도 대개 "요청 값 하나 + 응답 하나" 로 다루므로 그대로 대응된다
+- 응답이 공용 리소스와 같으면 별칭으로 둔다. 그 API 의 응답만 달라지면 `...Response` 만 바꾼다
+- `<동작>Response` 는 봉투 **안쪽**이다. 봉투까지 포함한 응답 본문 타입은 `Ok<GetExampleResponse>`
+
 ```ts
 // src/api-contracts/example.contract.ts — 모양
+
+// 공용 리소스
 export const Example = Type.Object({ ... });
 export type Example = Static<typeof Example>;
 
-export const ExampleParams = Type.Object({ id: Type.Integer({ minimum: 1 }) });
-export type ExampleParams = Static<typeof ExampleParams>;
+// GET /examples/:id?descriptionLength=10
+export const GetExampleParams = Type.Object({ id: Type.Integer({ minimum: 1 }) });
+export type GetExampleParams = Static<typeof GetExampleParams>;
+export const GetExampleRequest = Type.Object({                 // GET → querystring
+  descriptionLength: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
+});
+export type GetExampleRequest = Static<typeof GetExampleRequest>;
+export const GetExampleResponse = Example;
+export type GetExampleResponse = Example;
+
+// POST /examples
+export const PostExampleRequest = Type.Object({ title: ..., description: ... });
+export type PostExampleRequest = Static<typeof PostExampleRequest>;
+export const PostExampleResponse = Example;
+export type PostExampleResponse = Example;
 ```
 
 ```ts
 // src/modules/example/example.schema.ts — 경로에 묶기. 이름은 <controller 함수 이름>Schema
-import { ErrorResponse, Example, ExampleParams, Ok } from "@/api-contracts";
+import { ErrorResponse, GetExampleParams, GetExampleRequest, GetExampleResponse, Ok } from "@/api-contracts";
 
 export const getExampleSchema = {
   tags: ["example"],
   summary: "예시 조회",
-  params: ExampleParams,
+  params: GetExampleParams,      // 경로 파라미터 /examples/:id
+  querystring: GetExampleRequest, // 쿼리 파라미터 ?descriptionLength=10 (스키마 키는 query 가 아니라 querystring)
   response: {
-    200: Ok(Example),           // 성공 봉투로 감싼다 → response-envelope.md
+    200: Ok(GetExampleResponse), // 성공 봉투로 감싼다 → response-envelope.md
     404: ErrorResponse,         // 이 경로가 낼 수 있는 실패 (문서용)
   },
 };
@@ -116,7 +153,7 @@ reply.ok({ n: "x" });  // ❌ 컴파일 에러
   모노레포가 되면 `@/api-contracts` → `@<scope>/api-contracts` 로 경로만 바뀐다
 - 새 계약은 `<기능>.contract.ts` 로 만들고 `api-contracts/index.ts` 에 `export *` 한 줄을 추가한다
 - 공통 계약: 봉투 `Ok` / `ErrorResponse` (`envelope.contract.ts`), `ERROR_CODE` (`error-code.contract.ts`)
-- FE 는 타입으로도, 같은 스키마로 **런타임 검증**(`Value.Check(CreateExampleBody, form)`)으로도 쓸 수 있다
+- FE 는 타입으로도, 같은 스키마로 **런타임 검증**(`Value.Check(PostExampleRequest, form)`)으로도 쓸 수 있다
 - 프론트가 별도 저장소면 `/docs/json`(OpenAPI)에서 타입을 생성하는 방법도 함께 쓸 수 있다
 
 ## API 모양과 DB 행은 다르다

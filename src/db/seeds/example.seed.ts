@@ -1,6 +1,6 @@
 // src/db/seeds/example.seed.ts — examples 시드
 
-import type { Database } from "@/db";
+import { executor } from "@/db/transaction";
 import type { NewExampleRow } from "@/db/types/example.type";
 
 /**
@@ -15,9 +15,9 @@ const rows: NewExampleRow[] = [
   { title: "두 번째 예시", description: null, createdBy: "seed" },
 ];
 
-const run = async (db: Database): Promise<number> => {
-  await db.deleteFrom("examples").where("createdBy", "=", "seed").execute();
-  await db.insertInto("examples").values(rows).execute();
+const run = async (): Promise<number> => {
+  await executor().deleteFrom("examples").where("createdBy", "=", "seed").execute();
+  await executor().insertInto("examples").values(rows).execute();
   return rows.length;
 };
 

@@ -11,6 +11,8 @@
 src/db/
 ├─ index.ts        # createDatabase(options), Database·DatabaseOptions 타입
 ├─ env.ts          # DB_* 환경변수 → DatabaseOptions (databaseOptionsFromEnv)
+├─ client.ts       # 앱 전체 공용 인스턴스 db
+├─ transaction.ts  # executor() / transaction() — 트랜잭션 문맥 (AsyncLocalStorage)
 ├─ types/
 │  ├─ index.ts           # Db 인터페이스 (전체 테이블 등록)
 │  └─ example.type.ts    # 테이블별 타입
@@ -20,7 +22,7 @@ src/db/
 └─ seeds/
    ├─ index.ts           # 시드 등록부 + 실행기 (단독 스크립트)
    └─ example.seed.ts    # 파트별 시드
-src/plugins/db.ts  # fastify.db, 앱 종료 시 연결 정리
+src/plugins/db.ts  # 앱 종료 시 연결 정리
 ```
 
 ## src/db 는 바깥을 import 하지 않는다
@@ -32,10 +34,11 @@ src/plugins/db.ts  # fastify.db, 앱 종료 시 연결 정리
 그래서:
 - **`createDatabase(options)` 는 환경변수를 읽지 않는다.** 접속 정보를 인자로 받는다
 - DB 접속 환경변수(`DB_*`)는 `configs/env.config.ts` 가 아니라 **`db/env.ts`** 가 검증한다
-- 환경변수를 읽는 것은 진입점이 `databaseOptionsFromEnv()` 를 부를 때뿐이다 — `plugins/db.ts`, `migrate.ts`, `seeds/index.ts`
+- 환경변수를 읽는 것은 공용 인스턴스를 만드는 `db/client.ts` 한 곳뿐이다
 
 ```ts
-const db = createDatabase(databaseOptionsFromEnv());
+// db/client.ts
+export const db = createDatabase(databaseOptionsFromEnv());
 ```
 
 ## 시간대 — UTC 로 두 곳을 못박는다
@@ -51,51 +54,86 @@ const db = createDatabase(databaseOptionsFromEnv());
 DB 서버 설정에 기대지 않는다. 우리가 띄우는 서버가 아닐 수 있다.
 한국 시각으로 보여 주는 것은 화면이 한다.
 
-## DB 를 넘기는 방식 — 인자로
+## 계층별로 DB·트랜잭션을 누가 아나
 
-```
-controller  request.server.db 를 꺼낸다
-   ↓ db
-service     받은 db 를 repository 에 넘긴다. 트랜잭션이면 trx 를 넘긴다
-   ↓ db 또는 trx
-repository  받은 것으로 쿼리한다
-```
+| 계층 | DB | 트랜잭션 |
+|---|---|---|
+| controller | 모른다 | 모른다 |
+| service | 모른다 | **경계를 정한다** — `transaction(async () => { ... })` |
+| repository | `executor()` 로 **스스로 가져온다** | 모른다 (안에서 불리면 자동으로 같은 trx) |
 
 ```ts
-// controller
-const example = await exampleService.getExample(request.server.db, request.params.id);
+// controller — DB 를 모른다
+const example = await exampleService.getExample(request.params.id, request.query);
 
-// service
-const getExample = async (db: Database, id: number): Promise<Example> => {
-  const row = await exampleRepository.findById(db, id);
+// service — DB 인자가 없다. 혼자 돈다 (route·스크립트·스케줄러 어디서든)
+const getExample = async (id: number, query: GetExampleRequest): Promise<GetExampleResponse> => {
+  const row = await exampleRepository.findById(id);
   ...
 };
 
-// repository
-const findById = (db: Database, id: number) =>
-  db.selectFrom("examples").selectAll().where("id", "=", id).executeTakeFirst();
+// repository — DB 를 스스로 가져온다
+const findById = (id: number) =>
+  executor().selectFrom("examples").selectAll().where("id", "=", id).executeTakeFirst();
 ```
 
-왜 import 가 아니라 인자인가:
-- **트랜잭션이 자연스럽다.** service 가 `trx` 를 만들어 여러 repository 에 그대로 넘기면 된다. repository 는 받은 것이 db 인지 trx 인지 모른다 (`Transaction<Db>` 는 `Kysely<Db>` 를 상속한다)
-- service·repository 가 Fastify 를 import 하지 않는다
-- 테스트에서 바꿔 끼우기 쉽다
+- service 가 Fastify 도 DB 도 모르므로 **혼자 돈다.** 부르는 쪽이 DB 를 구해 넣을 필요가 없다
+- repository 는 누가 자기를 부르는지, 트랜잭션 안인지 모른다
+- **repository 는 `db` 를 직접 import 하지 않고 항상 `executor()` 를 쓴다.** `db` 를 직접 쓰면 트랜잭션 안에서 불려도 트랜잭션 밖에서 실행된다
 
 ## 트랜잭션
 
-**service 가 연다.** repository 는 트랜잭션을 열지 않는다 (어디까지 묶을지는 비즈니스 판단이다).
+**service 가 연다.** 원자적이어야 하는 단위를 `transaction()` 으로 감싼다. repository·controller 는 열지 않는다.
 
 ```ts
-const createExample = async (db: Database, input: CreateExampleBody, createdBy: string) =>
-  db.transaction().execute(async (trx) => {
-    const id = await exampleRepository.insert(trx, { ... });  // db 가 아니라 trx
-    const row = await exampleRepository.findById(trx, id);    // 같은 트랜잭션
+const createExample = (input: PostExampleRequest, createdBy: string) =>
+  transaction(async () => {
+    const id = await exampleRepository.insert({ ... });   // 인자 없이도 같은 trx
+    const row = await exampleRepository.findById(id);     // 같은 trx
     ...
   });
 ```
 
-- 콜백 안에서는 **반드시 `trx` 를 넘긴다.** `db` 를 넘기면 트랜잭션 밖에서 실행된다
-- 콜백이 throw 하면 롤백, 정상 종료하면 커밋
+### 원리 — AsyncLocalStorage
+
+`db/transaction.ts` 는 Node 내장 `AsyncLocalStorage` 로 "지금 진행 중인 트랜잭션" 을 **비동기 흐름을 따라** 전달한다.
+
+```ts
+const storage = new AsyncLocalStorage<Transaction<Db>>();
+
+export const executor = () => storage.getStore() ?? db;            // 흐름 안이면 trx, 밖이면 db
+export const transaction = (fn) =>
+  storage.getStore()
+    ? fn()                                                          // 이미 안이면 합류
+    : db.transaction().execute((trx) => storage.run(trx, fn));      // 아니면 새로 연다
+```
+
+- `storage.run(trx, fn)` 안에서 이어지는 모든 비동기 작업(await …)은 `storage.getStore()` 로 같은 trx 를 본다
+- 동시에 들어온 요청은 흐름이 달라 **각자 자기 trx 만 본다**
+- Go 로 치면 `context.Context` 를 인자로 넘기지 않고 자동으로 전달하는 것과 같다
+
+### 합류 — service 가 다른 service 를 불러도 한 트랜잭션
+
+```ts
+const placeOrder = (input) =>
+  transaction(async () => {                    // 새로 연다 (trx A)
+    await orderRepository.insert(...);
+    await stockService.decrease(input.itemId); // decrease 안의 transaction() → trx A 에 합류
+  });
+```
+
+- 이미 트랜잭션 안이면 `transaction()` 은 새로 열지 않고 합류한다 → 전체가 한 번에 커밋·롤백
+- 단독으로 불리면 자기 트랜잭션을 연다 → service 는 혼자서도 정합성을 지킨다
+- 합류가 없으면 각각 다른 연결의 별개 트랜잭션이 되어, 바깥이 롤백돼도 안쪽은 커밋된 채 남는다
+
+### 규칙
+
+- **트랜잭션 안의 호출은 반드시 `await` 한다.** 던져 두면 커밋 뒤에 실행되거나 트랜잭션 밖에서 실행된다.
+  Biome `noFloatingPromises`(nursery 규칙)가 await 누락을 lint 에러로 잡는다
+- **트랜잭션 안에서 다른 service 의 에러를 삼키지 않는다.** 합류한 쪽만 따로 롤백되지 않으므로,
+  try/catch 로 삼키고 계속하면 반쯤 쓴 데이터가 함께 커밋된다. 에러는 그대로 올려 전체를 롤백한다
+  (부분 롤백이 정말 필요하면 savepoint 를 따로 검토한다)
+- fn 이 throw 하면 롤백되고 에러는 그대로 올라가 error-handler 가 실패 봉투로 응답한다. controller 는 아무것도 하지 않는다
 - MySQL 은 `RETURNING` 이 없어, insert 후 같은 트랜잭션에서 다시 조회한다
 
 ## 이름 변환 — CamelCasePlugin
@@ -198,9 +236,9 @@ npm run db:seed -- example  # 한 파트만
 
 ```ts
 // db/seeds/example.seed.ts
-const run = async (db: Database): Promise<number> => {
-  await db.deleteFrom("examples").where("createdBy", "=", "seed").execute(); // 이전 시드 데이터 지움
-  await db.insertInto("examples").values(rows).execute();
+const run = async (): Promise<number> => {
+  await executor().deleteFrom("examples").where("createdBy", "=", "seed").execute(); // 이전 시드 데이터 지움
+  await executor().insertInto("examples").values(rows).execute();
   return rows.length; // 넣은 건수 (로그용)
 };
 
@@ -214,11 +252,11 @@ const seeds = [
 ];
 ```
 
-- 파일 이름: `<파트>.seed.ts`. `run(db)` 하나를 default export 객체로 내보낸다
+- 파일 이름: `<파트>.seed.ts`. `run()` 하나를 default export 객체로 내보낸다
 - **몇 번을 실행해도 결과가 같게** 만든다. 넣기 전에 그 시드가 넣었던 행을 지운다 (시드 행을 구분할 표시를 둔다)
 - `seeds/index.ts` 에 등록한다. **다른 테이블을 참조(FK)하는 시드는 참조 대상보다 뒤에** 둔다
 - 전부 한 트랜잭션으로 실행한다. 하나라도 실패하면 아무것도 남지 않는다
-- 시드 함수는 받은 `db`(실행기가 넘기는 `trx`)로만 쿼리한다
+- 시드도 repository 처럼 `executor()` 로 쿼리한다. 실행기가 `transaction()` 으로 감싸므로 같은 트랜잭션이 된다
 
 ## 새 테이블 추가 순서
 
@@ -231,10 +269,9 @@ const seeds = [
 
 ## 앱에서
 
-- `plugins/db.ts` 가 `createDatabase(databaseOptionsFromEnv())` 로 한 번 만들어 `fastify.db` 로 붙인다
-- 앱이 닫힐 때(`onClose`) `db.destroy()` 로 연결 풀을 정리한다. 없으면 프로세스가 끝나지 않는다
-- `app.ts` 에서 auth 보다 먼저 등록한다. 가드가 DB 로 계정 상태를 확인할 수 있게
-- 단독 스크립트(`migrate.ts`, `seeds/index.ts`)는 `createDatabase(databaseOptionsFromEnv())` 를 직접 부르고 끝나면 `destroy()` 한다
+- 인스턴스는 `db/client.ts` 의 `db` 하나다. `fastify.db` 같은 데코레이터는 두지 않는다
+- `plugins/db.ts` 는 앱이 닫힐 때(`onClose`) `db.destroy()` 로 연결 풀을 정리하는 일만 한다. 없으면 프로세스가 끝나지 않는다
+- 단독 스크립트(`migrate.ts`, `seeds/index.ts`)도 `db/client.ts` 의 `db` 를 쓰고 끝나면 `destroy()` 한다
 
 ## 테스트
 

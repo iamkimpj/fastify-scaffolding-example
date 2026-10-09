@@ -4,8 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FileMigrationProvider, Migrator } from "kysely/migration";
-import { createDatabase } from "@/db";
-import { databaseOptionsFromEnv } from "@/db/env";
+import { db } from "@/db/client";
 
 /**
  * 마이그레이션을 실행한다. 앱과 별개로 단독 실행한다.
@@ -21,8 +20,6 @@ if (direction !== "up" && direction !== "down") {
   console.error("사용법: tsx src/db/migrate.ts <up|down>");
   process.exit(1);
 }
-
-const db = createDatabase(databaseOptionsFromEnv());
 
 const migrator = new Migrator({
   db,

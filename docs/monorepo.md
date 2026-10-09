@@ -24,13 +24,18 @@ apps/
 
 | 지금 | 갈 곳 | 옮기기 위한 준비 (지금 지켜 둔다) |
 |---|---|---|
-| `src/db/` 전체 (index, env, types, migrations, seeds, migrate) | `packages/db` | **`src/db/` 는 바깥을 import 하지 않는다** — Biome 로 강제됨. 그래서 디렉토리째 옮기면 된다 |
+| `src/db/` (index, env, types, migrations, seeds, migrate — client·transaction 은 제외, 아래) | `packages/db` | **`src/db/` 는 바깥을 import 하지 않는다** — Biome 로 강제됨. 그래서 디렉토리째 옮기면 된다 |
 | `src/api-contracts/` 전체 (요청·응답 모양, `ERROR_CODE`, 봉투) | `packages/api-contracts` | **`typebox` 와 `src/api-contracts` 만 import 한다** — Biome 로 강제됨. 앱은 `@/api-contracts` 진입점에서만 import 하므로, 옮긴 뒤 경로만 `@<scope>/api-contracts` 로 바꾼다. 라우트 스키마 묶음(`modules/*/x.schema.ts`)은 앱에 남는다 |
 | `lib/jwt.ts` | `packages/auth` | 환경변수를 읽지 않으므로 그대로 옮긴다 |
 | repository, service, controller, route | `apps/<서버>` | 앱마다 쿼리·로직이 다르다 |
 | `plugins/`, `hooks/`, `guards/`, `lib/handler.ts`, `lib/errors.ts`, `lib/guard.ts`, `configs/` | `apps/<서버>` | Fastify 에 묶인 것, 앱마다 다른 것 |
 
 ## 원칙
+
+### DB 인스턴스와 트랜잭션 문맥은 앱에 둔다
+`src/db/client.ts`(환경변수로 공용 인스턴스를 만듦)와 `src/db/transaction.ts`(그 인스턴스에 묶인 문맥)는
+**앱마다 다른 것**이므로 `packages/db` 로 옮기지 않고 앱에 둔다. 여러 앱이 같은 헬퍼를 쓰고 싶으면
+`packages/db` 에 `createTransactionContext(db)` 처럼 인스턴스를 인자로 받는 팩토리로 만들어 둔다.
 
 ### 마이그레이션은 한 곳에서만
 같은 DB 를 여러 앱이 쓰므로 마이그레이션은 `packages/db` 한 곳에만 둔다.

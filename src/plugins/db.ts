@@ -2,24 +2,15 @@
 
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
-import { createDatabase, type Database } from "@/db";
-import { databaseOptionsFromEnv } from "@/db/env";
+import { db } from "@/db/client";
 
-declare module "fastify" {
-  interface FastifyInstance {
-    /**
-     * DB. controller 가 `request.server.db` 로 꺼내 service 에 넘긴다.
-     * service·repository 는 인자로 받는다 (Fastify 를 import 하지 않는다).
-     */
-    db: Database;
-  }
-}
-
+/**
+ * 앱이 닫힐 때 DB 연결 풀을 정리한다. 없으면 프로세스가 끝나지 않는다.
+ *
+ * DB 인스턴스는 db/client.ts 에 하나 있고, repository 가 executor() 로 직접 쓴다.
+ * controller·service 는 DB 를 모른다 (fastify.db 같은 데코레이터를 두지 않는다).
+ */
 async function dbPlugin(app: FastifyInstance) {
-  const db = createDatabase(databaseOptionsFromEnv());
-  app.decorate("db", db);
-
-  // 앱이 닫힐 때 연결 풀을 정리한다. 없으면 프로세스가 끝나지 않는다.
   app.addHook("onClose", async () => {
     await db.destroy();
   });

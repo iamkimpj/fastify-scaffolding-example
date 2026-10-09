@@ -103,18 +103,22 @@ vi.spyOn(exampleRepository, "findById").mockResolvedValue(row);       // 있음
 vi.spyOn(exampleRepository, "findById").mockResolvedValue(undefined); // 없음 → 404
 ```
 
-트랜잭션을 쓰는 service 는 `app.db.transaction` 을 흉내 낸다. 같은 db 로 콜백을 바로 실행한다.
+트랜잭션을 쓰는 service 는 `db.transaction` 을 흉내 낸다. DB 에 접속하지 않고 가짜 trx 로 콜백을 바로 실행한다.
+repository mock 안에서 `executor()` 를 기록하면 같은 trx 를 썼는지까지 확인할 수 있다.
 
 ```ts
-vi.spyOn(app.db, "transaction").mockReturnValue({
-  execute: (fn: (trx: Database) => Promise<unknown>) => fn(app.db),
+import { db } from "@/db/client";
+
+const fakeTrx = { fake: "trx" } as unknown as Database;
+vi.spyOn(db, "transaction").mockReturnValue({
+  execute: (fn: (trx: Database) => Promise<unknown>) => fn(fakeTrx),
 } as unknown as ReturnType<Database["transaction"]>);
 ```
 
 DB 연결 풀은 첫 쿼리 때 접속하므로, mock 이 모든 쿼리를 막으면 DB 없이도 테스트가 돈다.
 **실제 쿼리가 맞는지**는 DB 가 있는 프로젝트에서 repository 테스트를 따로 둬 확인한다.
 
-예: `modules/example/example.test.ts`
+예: `modules/example/example.test.ts`, 트랜잭션 헬퍼 자체는 `db/transaction.test.ts`
 
 ## 확인하지 않는 것
 

@@ -41,14 +41,25 @@
 
 ```ts
 response: {
-  200: Ok(UserData),
+  200: Ok(GetExampleResponse),
 }
 ```
 
 반드시 `Ok()` 로 감싼다. 감싸야 하는 이유:
 - Swagger 에 실제 응답 모양(`{ isOk, data }`)이 나온다
-- `reply.ok(data)` 의 `data` 가 `UserData` 로 타입 체크된다 → [schema.md](schema.md)
+- `reply.ok(data)` 의 `data` 가 `GetExampleResponse` 로 타입 체크된다 → [schema.md](schema.md)
 - 응답이 스키마 기준으로 직렬화된다. **스키마에 없는 필드는 응답에서 빠진다** (비밀번호 해시 같은 값이 새지 않는다)
+
+### `Ok<T>` — 성공 봉투 타입
+
+스키마 함수 `Ok(X)` 와 **같은 이름의 타입**도 있다 (TypeBox 스키마는 타입으로 취급하는 규칙).
+FE 가 응답 본문 전체의 타입을 적을 때 쓴다.
+
+```ts
+import type { Ok, GetExampleResponse } from "@/api-contracts";
+
+type Body = Ok<GetExampleResponse>; // { isOk: true; data: GetExampleResponse }
+```
 
 ### `ErrorResponse` — 실패 봉투 스키마
 
@@ -56,8 +67,8 @@ response: {
 
 ```ts
 response: {
-  200: Ok(UserData),
-  404: ErrorResponse,   // USER_NOT_FOUND
+  200: Ok(GetExampleResponse),
+  404: ErrorResponse,   // EXAMPLE_NOT_FOUND
 }
 ```
 

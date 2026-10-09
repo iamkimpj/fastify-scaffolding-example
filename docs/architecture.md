@@ -13,6 +13,8 @@ src/
 ├─ db/                    # DB 인스턴스·테이블 타입·마이그레이션 → database.md
 │  ├─ index.ts            # createDatabase(options), Database 타입
 │  ├─ env.ts              # DB_* 환경변수 검증 (src/db 는 바깥을 import 하지 않는다)
+│  ├─ client.ts           # 공용 인스턴스 db
+│  ├─ transaction.ts      # executor() / transaction()
 │  ├─ types/              # 테이블 타입. 테이블별 파일 + Db 인터페이스 (index.ts)
 │  ├─ migrate.ts          # 마이그레이션 실행 (단독 스크립트)
 │  ├─ migrations/         # 마이그레이션 파일
@@ -32,7 +34,7 @@ src/
 │  ├─ error-handler.ts    # 모든 오류 → 실패 봉투
 │  ├─ security.ts         # cors, helmet
 │  ├─ swagger.ts          # /docs
-│  ├─ db.ts               # fastify.db
+│  ├─ db.ts               # 앱 종료 시 DB 연결 정리
 │  └─ auth.ts             # request.auth() / authOrFail()
 ├─ guards/                # 가드 정의와 등록부
 │  ├─ index.ts
@@ -75,9 +77,9 @@ HTTP 요청
 | 계층 | 한다 | 하지 않는다 |
 |---|---|---|
 | route | `app.get(path, { schema, onRequest }, controller.fn)` | 로직, 인라인 핸들러 |
-| controller | `request.params/body/query` 꺼내기, `request.authOrFail()`, `request.server.db` 를 service 에 넘기기, `reply.ok()` | 비즈니스 로직, try/catch, `reply.status(4xx)` |
-| service | 로직, DB 행 → API 모양 변환, 트랜잭션, repository 호출, `throw new AppError()` | `request`/`reply` 받기, Fastify import |
-| repository | Kysely 쿼리. DB 는 인자로 받는다 | 로직, 에러 판단 (없으면 `undefined` 를 돌려줄 뿐) |
+| controller | `request.params/body/query` 꺼내기, `request.authOrFail()`, service 호출, `reply.ok()` | 비즈니스 로직, try/catch, `reply.status(4xx)` |
+| service | 로직, DB 행 → API 모양 변환, 트랜잭션 경계(`transaction()`), repository 호출, `throw new AppError()` | `request`/`reply` 받기, Fastify import |
+| repository | Kysely 쿼리. DB 는 `executor()` 로 가져온다 | 로직, 에러 판단 (없으면 `undefined` 를 돌려줄 뿐), 트랜잭션 열기 |
 | schema | 라우트 스키마 묶음 (계약을 경로에 묶기) | 요청·응답 모양 정의 (→ `api-contracts/`), 로직 |
 
 - **의존 방향은 한쪽으로만.** 아래 계층이 위 계층을 import 하지 않는다. 계층을 건너뛰지 않는다 (controller → repository 금지).
@@ -104,7 +106,7 @@ await app.register(reply);         // reply.ok — 모든 경로보다 먼저
 await app.register(errorHandler);  // 실패 봉투
 await app.register(security);      // cors, helmet
 await app.register(swagger);       // 라우트보다 먼저 등록해야 라우트를 수집한다
-await app.register(db);            // fastify.db — 가드가 DB 를 쓸 수 있도록 auth 보다 먼저
+await app.register(db);            // 앱 종료 시 DB 연결 정리
 await app.register(auth);          // request.auth
 await app.register(modules, { prefix: "/api" });
 ```

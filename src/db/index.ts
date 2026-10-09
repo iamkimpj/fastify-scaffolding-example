@@ -42,8 +42,8 @@ const MYSQL_SESSION_TIME_ZONE = "+00:00";
  * - 연결 풀은 **첫 쿼리 때 접속한다.** DB 가 없어도 서버는 뜨고, 쿼리하는 순간에만 실패한다.
  * - CamelCasePlugin: 코드의 camelCase ↔ DB 의 snake_case 를 자동 변환한다 (`createdAt` ↔ `created_at`).
  *
- * 앱에서는 plugins/db.ts 가 한 번 만들어 `fastify.db` 로 붙인다.
- * migrate.ts / seeds 같은 단독 스크립트는 직접 만들고 끝나면 `destroy()` 한다.
+ * 앱 전체가 쓰는 인스턴스는 db/client.ts 가 한 번 만든다.
+ * 모노레포에서 다른 설정으로 인스턴스가 필요하면 이 함수를 직접 부른다.
  */
 export const createDatabase = (options: DatabaseOptions): Database => {
   // 시간대는 받은 옵션보다 뒤에 둔다. 부르는 쪽이 덮어쓰면 환경마다 달라진다.

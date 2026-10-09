@@ -42,6 +42,15 @@ describe("error-handler", () => {
     app.get("/test/crash", async () => {
       throw new Error("db down");
     });
+    app.get("/test/crash-empty-message", async () => {
+      // DB 접속 실패 때 Node 가 던지는 모양: message 는 비고 code 에만 원인이 있다
+      throw Object.assign(new AggregateError([new Error("connect ECONNREFUSED ::1:3306")], ""), {
+        code: "ECONNREFUSED",
+      });
+    });
+    app.get("/test/crash-nothing", async () => {
+      throw new Error("");
+    });
 
     await app.ready();
   });
@@ -105,11 +114,29 @@ describe("error-handler", () => {
     expect(res.json()).toMatchObject({ isOk: false, errorCode: "INVALID_REQUEST" });
   });
 
-  it("예상하지 못한 오류는 500 INTERNAL_ERROR 로 응답한다", async () => {
+  it("예상하지 못한 오류는 500 INTERNAL_ERROR 로 응답한다 (개발 환경: 원래 메시지)", async () => {
     const res = await app.inject({ method: "GET", url: "/test/crash" });
 
     expect(res.statusCode).toBe(500);
-    expect(res.json()).toMatchObject({ isOk: false, errorCode: "INTERNAL_ERROR" });
+    expect(res.json()).toEqual({
+      isOk: false,
+      errorCode: "INTERNAL_ERROR",
+      errorMessage: "db down",
+    });
+  });
+
+  it("메시지가 빈 500 은 error.code 로 채운다 (DB 접속 실패 AggregateError)", async () => {
+    const res = await app.inject({ method: "GET", url: "/test/crash-empty-message" });
+
+    expect(res.statusCode).toBe(500);
+    expect(res.json().errorMessage).toBe("ECONNREFUSED");
+  });
+
+  it("메시지도 code 도 없는 500 은 고정 문구로 채운다", async () => {
+    const res = await app.inject({ method: "GET", url: "/test/crash-nothing" });
+
+    expect(res.statusCode).toBe(500);
+    expect(res.json().errorMessage).toBe("요청을 처리하지 못했습니다");
   });
 
   it("없는 경로는 404 ROUTE_NOT_FOUND 로 응답하고 주소를 되비추지 않는다", async () => {

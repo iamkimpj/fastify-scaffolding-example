@@ -22,7 +22,7 @@ import type {
  *
  * @example
  * const getUser: Handler<typeof getUserSchema> = async (request, reply) => {
- *   const user = await userService.getUser(request.server.db, request.params.id);
+ *   const user = await userService.getUser(request.params.id);
  *   return reply.ok(user);
  * };
  */
