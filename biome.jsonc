@@ -1,0 +1,109 @@
+// biome.jsonc — 린트·포맷 설정
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["src/**", "*.ts", "*.json", "*.jsonc"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on"
+        }
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["./*", "../*"],
+                "message": "상대경로 import 금지. '@/...' alias를 사용하세요."
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/db/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["./*", "../*"],
+                    "message": "상대경로 import 금지. '@/...' alias를 사용하세요."
+                  },
+                  {
+                    "group": ["@/**", "!@/db", "!@/db/**"],
+                    "message": "src/db 는 src/db 바깥을 import 하지 않는다 (모노레포에서 packages/db 로 옮길 수 있게)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/api-contracts/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["./*", "../*"],
+                    "message": "상대경로 import 금지. '@/...' alias를 사용하세요."
+                  },
+                  {
+                    "group": [
+                      "**",
+                      "!typebox",
+                      "!typebox/**",
+                      "!@/api-contracts",
+                      "!@/api-contracts/**"
+                    ],
+                    "message": "src/api-contracts 는 typebox 와 src/api-contracts 만 import 한다 (FE 와 공유하는 계약이므로 Fastify·DB 등에 의존하지 않는다)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all",
+      "semicolons": "always"
+    }
+  }
+}

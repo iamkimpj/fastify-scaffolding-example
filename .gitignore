@@ -1,0 +1,10 @@
+# .gitignore — git 제외 목록
+
+node_modules/
+dist/
+coverage/
+logs/
+.env
+.env.*
+!.env.example
+.DS_Store
